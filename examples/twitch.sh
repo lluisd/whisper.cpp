@@ -13,6 +13,7 @@ set -eo pipefail
 step=10
 model=base.en
 threads=4
+current_time=$(date "+%Y.%m.%d-%H.%M.%S")
 
 help()
 {
@@ -72,7 +73,7 @@ if [ -z $url ]; then
 fi
 
 echo "Piping from streamlink url=$url model=$model step=$step threads=$threads"
-streamlink $url best -O 2>/dev/null | ffmpeg -loglevel quiet -i - -y -probesize 32 -y -ar 16000 -ac 1 -acodec pcm_s16le /tmp/whisper-live0.wav &
+streamlink $url best -O 2>/dev/null | ffmpeg -loglevel quiet -i - -y -probesize 32 -y -ar 16000 -ac 1 -acodec pcm_s16le /tmp/whisper-live"$current_time"0.wav &
 
 if [ $? -ne 0 ]; then
     printf "error: ffmpeg failed\n"
@@ -93,17 +94,17 @@ do
     err=1
     while [ $err -ne 0 ]; do
         if [ $i -gt 0 ]; then
-            ffmpeg -loglevel quiet -v error -noaccurate_seek -i /tmp/whisper-live0.wav -y -ss $(($i*$step-1)).5 -t $step -c copy /tmp/whisper-live.wav 2> /tmp/whisper-live.err
+            ffmpeg -loglevel quiet -v error -noaccurate_seek -i /tmp/whisper-live"$current_time"0.wav -y -ss $(($i*$step-1)).5 -t $step -c copy /tmp/whisper-live"$current_time".wav 2> /tmp/whisper-live"$current_time".err
         else
-            ffmpeg -loglevel quiet -v error -noaccurate_seek -i /tmp/whisper-live0.wav -y -ss $(($i*$step)) -t $step -c copy /tmp/whisper-live.wav 2> /tmp/whisper-live.err
+            ffmpeg -loglevel quiet -v error -noaccurate_seek -i /tmp/whisper-live"$current_time"0.wav -y -ss $(($i*$step)) -t $step -c copy /tmp/whisper-live"$current_time".wav 2> /tmp/whisper-live"$current_time".err
         fi
-        err=$(cat /tmp/whisper-live.err | wc -l)
+        err=$(cat /tmp/whisper-live"$current_time".err | wc -l)
     done
 
-    ./main -t $threads -m ./models/ggml-$model.bin -f /tmp/whisper-live.wav --no-timestamps -otxt 2> /tmp/whispererr | tail -n 1
-
+    ./main -l es -debug -t $threads -m /models/ggml-$model.bin -f /tmp/whisper-live"$current_time".wav --no-timestamps -otxt 2> /tmp/whispererr"$current_time"MAIN | tail -n 1
+    cat /tmp/whisper-live"$current_time".wav.txt >> /tmp/whispererr"$current_time"Final.wav.txt
     while [ $SECONDS -lt $((($i+1)*$step)) ]; do
         sleep 1
     done
     ((i=i+1))
-done
+done 
